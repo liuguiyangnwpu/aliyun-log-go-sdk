@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	sls "github.com/aliyun/aliyun-log-go-sdk"
+	"github.com/aliyun/aliyun-log-go-sdk"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 )
@@ -17,24 +17,24 @@ type CallBack interface {
 }
 
 type IoWorker struct {
-	client                 *sls.Client
 	retryQueue             *RetryQueue
 	taskCount              int64
 	retryQueueShutDownFlag bool
 	logger                 log.Logger
 	maxIoWorker            chan int64
 	noRetryStatusCodeMap   map[int]*string
+	projectConfig	       *ProjectConfig
 }
 
-func initIoWorker(client *sls.Client, retryQueue *RetryQueue, logger log.Logger, maxIoWorkerCount int64, errorStatusMap map[int]*string) *IoWorker {
+func initIoWorker(retryQueue *RetryQueue, logger log.Logger, maxIoWorkerCount int64, errorStatusMap map[int]*string, projectConfig *ProjectConfig) *IoWorker {
 	return &IoWorker{
-		client:                 client,
 		retryQueue:             retryQueue,
 		taskCount:              0,
 		retryQueueShutDownFlag: false,
 		logger:                 logger,
 		maxIoWorker:            make(chan int64, maxIoWorkerCount),
 		noRetryStatusCodeMap:   errorStatusMap,
+		projectConfig:			projectConfig,
 	}
 }
 
@@ -43,10 +43,11 @@ func (ioWorker *IoWorker) sendToServer(producerBatch *ProducerBatch, ioWorkerWai
 	defer ioWorker.closeSendTask(ioWorkerWaitGroup)
 	var err error
 	atomic.AddInt64(&ioWorker.taskCount, 1)
+
 	if producerBatch.shardHash != nil {
-		err = ioWorker.client.PostLogStoreLogs(producerBatch.getProject(), producerBatch.getLogstore(), producerBatch.logGroup, producerBatch.getShardHash())
+		err = ioWorker.projectConfig.getClient().PostLogStoreLogs(producerBatch.getProject(), producerBatch.getLogstore(), producerBatch.logGroup, producerBatch.getShardHash())
 	} else {
-		err = ioWorker.client.PutLogs(producerBatch.getProject(), producerBatch.getLogstore(), producerBatch.logGroup)
+		err = ioWorker.projectConfig.getClient().PutLogs(producerBatch.getProject(), producerBatch.getLogstore(), producerBatch.logGroup)
 	}
 	if err == nil {
 		level.Debug(ioWorker.logger).Log("msg", "sendToServer suecssed,Execute successful callback function")
@@ -56,7 +57,7 @@ func (ioWorker *IoWorker) sendToServer(producerBatch *ProducerBatch, ioWorkerWai
 		}
 		producerBatch.result.successful = true
 		// After successful delivery, producer removes the batch size sent out
-		atomic.AddInt64(&producerLogGroupSize, -producerBatch.totalDataSize)
+		atomic.AddInt64(&ioWorker.projectConfig.producerLogGroupSize, -producerBatch.totalDataSize)
 		if len(producerBatch.callBackList) > 0 {
 			for _, callBack := range producerBatch.callBackList {
 				callBack.Success(producerBatch.result)

@@ -2,9 +2,10 @@ package producer
 
 import (
 	"container/heap"
+	"time"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"time"
 )
 
 type RetryQueue []*ProducerBatch

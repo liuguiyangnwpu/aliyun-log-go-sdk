@@ -1,10 +1,11 @@
 package producer
 
 import (
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"sync"
 	"time"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 type Mover struct {
@@ -30,8 +31,8 @@ func initMover(logAccumulator *LogAccumulator, retryQueue *RetryQueue, ioWorker 
 }
 
 func (mover *Mover) sendToServer(key interface{}, batch *ProducerBatch, config *ProducerConfig) {
-	defer ioLock.Unlock()
-	ioLock.Lock()
+	defer mover.ioWorker.projectConfig.ioLock.Unlock()
+	mover.ioWorker.projectConfig.ioLock.Lock()
 	if value, ok := mover.logAccumulator.logGroupData.Load(key); !ok {
 		return
 	} else if GetTimeMs(time.Now().UnixNano())-value.(*ProducerBatch).createTimeMs < config.LingerMs {
@@ -62,7 +63,7 @@ func (mover *Mover) run(moverWaitGroup *sync.WaitGroup, config *ProducerConfig) 
 			return true
 		})
 		if mapCount == 0 {
-			level.Debug(mover.logger).Log("msg", "No data time in map waiting for user configured RemainMs parameter values")
+			level.Debug(mover.logger).Log("msg", "No cached data in producer, waiting for new data to be written")
 			sleepMs = config.LingerMs
 		}
 

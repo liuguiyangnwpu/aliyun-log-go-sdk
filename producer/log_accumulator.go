@@ -2,12 +2,13 @@ package producer
 
 import (
 	"errors"
-	"github.com/aliyun/aliyun-log-go-sdk"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/aliyun/aliyun-log-go-sdk"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 type LogAccumulator struct {
@@ -65,7 +66,7 @@ func (logAccumulator *LogAccumulator) addLogToProducerBatch(project, logstore, s
 			producerBatch := data.(*ProducerBatch)
 			logSize := int64(GetLogSizeCalculate(mlog))
 			atomic.AddInt64(&producerBatch.totalDataSize, logSize)
-			atomic.AddInt64(&producerLogGroupSize, logSize)
+			atomic.AddInt64(&logAccumulator.ioWorker.projectConfig.producerLogGroupSize, logSize)
 			logAccumulator.addOrSendProducerBatch(key, project, logstore, logTopic, logSource, shardHash, producerBatch, mlog, callback)
 		} else {
 			logAccumulator.createNewProducerBatch(mlog, callback, key, project, logstore, logTopic, logSource, shardHash)
@@ -75,7 +76,7 @@ func (logAccumulator *LogAccumulator) addLogToProducerBatch(project, logstore, s
 			producerBatch := data.(*ProducerBatch)
 			logListSize := int64(GetLogListSize(logList))
 			atomic.AddInt64(&producerBatch.totalDataSize, logListSize)
-			atomic.AddInt64(&producerLogGroupSize, logListSize)
+			atomic.AddInt64(&logAccumulator.ioWorker.projectConfig.producerLogGroupSize, logListSize)
 			logAccumulator.addOrSendProducerBatch(key, project, logstore, logTopic, logSource, shardHash, producerBatch, logList, callback)
 
 		} else {
@@ -102,8 +103,8 @@ func (logAccumulator *LogAccumulator) createNewProducerBatch(logType interface{}
 }
 
 func (logAccumulator *LogAccumulator) sendToServer(key string, producerBatch *ProducerBatch) {
-	defer ioLock.Unlock()
-	ioLock.Lock()
+	defer logAccumulator.ioWorker.projectConfig.ioLock.Unlock()
+	logAccumulator.ioWorker.projectConfig.ioLock.Lock()
 	level.Debug(logAccumulator.logger).Log("msg", "Send producerBatch to IoWorker from logAccumulator")
 	logAccumulator.threadPool.addTask(producerBatch)
 	logAccumulator.logGroupData.Delete(key)

@@ -2,12 +2,13 @@ package producer
 
 import (
 	"errors"
-	"github.com/aliyun/aliyun-log-go-sdk"
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/aliyun/aliyun-log-go-sdk"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 const (
@@ -15,8 +16,6 @@ const (
 	IllegalStateException = "IllegalStateException"
 )
 
-var producerLogGroupSize int64
-var ioLock sync.RWMutex
 
 type Producer struct {
 	producerConfig        *ProducerConfig
@@ -29,15 +28,13 @@ type Producer struct {
 	adjustShardHash       bool
 	buckets               int
 	logger                log.Logger
+	ioWorker			  *IoWorker
+	projectConfig         *ProjectConfig
+
 }
 
 func InitProducer(producerConfig *ProducerConfig) *Producer {
 	logger := logConfig(producerConfig)
-	client := &sls.Client{
-		Endpoint:        producerConfig.Endpoint,
-		AccessKeyID:     producerConfig.AccessKeyID,
-		AccessKeySecret: producerConfig.AccessKeySecret,
-	}
 	finalProducerConfig := validateProducerConfig(producerConfig)
 	retryQueue := initRetryQueue()
 	errorStatusMap := func() map[int]*string {
@@ -47,7 +44,8 @@ func InitProducer(producerConfig *ProducerConfig) *Producer {
 		}
 		return errorCodeMap
 	}()
-	ioWorker := initIoWorker(client, retryQueue, logger, finalProducerConfig.MaxIoWorkerCount, errorStatusMap)
+	projectConfig := initProjectConfig(producerConfig)
+	ioWorker := initIoWorker(retryQueue, logger, finalProducerConfig.MaxIoWorkerCount, errorStatusMap, projectConfig)
 	threadPool := initIoThreadPool(ioWorker, logger)
 	logAccumulator := initLogAccumulator(finalProducerConfig, ioWorker, logger, threadPool)
 	mover := initMover(logAccumulator, retryQueue, ioWorker, logger, threadPool)
@@ -57,6 +55,8 @@ func InitProducer(producerConfig *ProducerConfig) *Producer {
 		mover:          mover,
 		threadPool:     threadPool,
 		buckets:        finalProducerConfig.Buckets,
+		ioWorker: 		ioWorker,
+		projectConfig:  projectConfig,
 	}
 	producer.moverWaitGroup = &sync.WaitGroup{}
 	producer.ioWorkerWaitGroup = &sync.WaitGroup{}
@@ -200,7 +200,7 @@ func (producer *Producer) waitTime() error {
 	if producer.producerConfig.MaxBlockSec > 0 {
 		for i := 0; i < producer.producerConfig.MaxBlockSec; i++ {
 
-			if atomic.LoadInt64(&producerLogGroupSize) > producer.producerConfig.TotalSizeLnBytes {
+			if atomic.LoadInt64(&producer.projectConfig.producerLogGroupSize) > producer.producerConfig.TotalSizeLnBytes {
 				time.Sleep(time.Second)
 			} else {
 				return nil
@@ -209,13 +209,13 @@ func (producer *Producer) waitTime() error {
 		level.Error(producer.logger).Log("msg", "Over producer set maximum blocking time")
 		return errors.New(TimeoutExecption)
 	} else if producer.producerConfig.MaxBlockSec == 0 {
-		if atomic.LoadInt64(&producerLogGroupSize) > producer.producerConfig.TotalSizeLnBytes {
+		if atomic.LoadInt64(&producer.projectConfig.producerLogGroupSize) > producer.producerConfig.TotalSizeLnBytes {
 			level.Error(producer.logger).Log("msg", "Over producer set maximum blocking time")
 			return errors.New(TimeoutExecption)
 		}
 	} else if producer.producerConfig.MaxBlockSec < 0 {
 		for {
-			if atomic.LoadInt64(&producerLogGroupSize) > producer.producerConfig.TotalSizeLnBytes {
+			if atomic.LoadInt64(&producer.projectConfig.producerLogGroupSize) > producer.producerConfig.TotalSizeLnBytes {
 				time.Sleep(time.Second)
 			} else {
 				return nil
@@ -270,4 +270,8 @@ func (producer *Producer) sendCloseProdcerSignal() {
 	producer.mover.moverShutDownFlag = true
 	producer.logAccumulator.shutDownFlag = true
 	producer.mover.ioWorker.retryQueueShutDownFlag = true
+}
+
+func (producer *Producer) PutNewProducerConfig(producerConfig *ProducerConfig) {
+	producer.projectConfig.PutNewProjectConfig(producerConfig)
 }
