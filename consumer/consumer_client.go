@@ -1,6 +1,7 @@
 package consumerLibrary
 
 import (
+	"fmt"
 	"github.com/aliyun/aliyun-log-go-sdk"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -9,7 +10,7 @@ import (
 
 type ConsumerClient struct {
 	option        LogHubConfig
-	client        *sls.Client
+	client        sls.ClientInterface
 	consumerGroup sls.ConsumerGroup
 	logger        log.Logger
 }
@@ -25,13 +26,21 @@ func initConsumerClient(option LogHubConfig, logger log.Logger) *ConsumerClient 
 	if option.MaxFetchLogGroupCount == 0 {
 		option.MaxFetchLogGroupCount = 1000
 	}
-	client := &sls.Client{
-		Endpoint:        option.Endpoint,
-		AccessKeyID:     option.AccessKeyID,
-		AccessKeySecret: option.AccessKeySecret,
-		// SecurityToken:   option.SecurityToken,
-		UserAgent: option.ConsumerGroupName + "_" + option.ConsumerName,
+
+	var client sls.ClientInterface = nil
+	var errGen error = nil
+	if option.AccessKeyID == "ETL_STS_DEFAULT" || option.AccessKeyID == "ETL_STS_CUSTOM" {
+		client, errGen = sls.CreateTokenAutoUpdateClient(option.Endpoint, option.UpdateStsToken, option.StsTokenShutDown)
+		if errGen == nil {
+			client.SetConsumerAgent(option.ConsumerGroupName + "_" + option.ConsumerName)
+		} else {
+			fmt.Println("CreateTokenAutoUpdateClient failed !", errGen)
+		}
+	} else {
+		client = sls.CreateNormalInterface(option.Endpoint, option.AccessKeyID, option.AccessKeySecret, "")
+		client.SetConsumerAgent(option.ConsumerGroupName + "_" + option.ConsumerName)
 	}
+
 	consumerGroup := sls.ConsumerGroup{
 		option.ConsumerGroupName,
 		option.HeartbeatIntervalInSecond * 3,

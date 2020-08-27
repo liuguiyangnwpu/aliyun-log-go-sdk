@@ -1,5 +1,7 @@
 package consumerLibrary
 
+import "time"
+
 type LogHubConfig struct {
 	//:param Endpoint:
 	//:param AccessKeyID:
@@ -51,6 +53,8 @@ type LogHubConfig struct {
 	LogMaxBackups             int
 	LogCompass                bool
 	// SecurityToken        string
+	UpdateStsToken    	  func() (accessKeyID, accessKeySecret, securityToken string, expireTime time.Time, err error)
+	StsTokenShutDown      chan struct{}
 }
 
 const (

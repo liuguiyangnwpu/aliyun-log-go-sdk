@@ -69,3 +69,7 @@ func (c *TokenAutoUpdateClient) GetCheckpoint(project, logstore string, cgName s
 	}
 	return
 }
+
+func (c *TokenAutoUpdateClient) SetConsumerAgent(agentName string) {
+	c.logClient.SetConsumerAgent(agentName)
+}

@@ -133,7 +133,6 @@ func (c *TokenAutoUpdateClient) processError(err error) (retry bool) {
 		return true
 	}
 	return false
-
 }
 
 func (c *TokenAutoUpdateClient) Close() error {

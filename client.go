@@ -108,6 +108,10 @@ func convert(c *Client, projName string) *LogProject {
 	return p
 }
 
+func (c *Client) SetConsumerAgent(agentName string) {
+	c.UserAgent = agentName
+}
+
 // ResetAccessKeyToken reset client's access key token
 func (c *Client) ResetAccessKeyToken(accessKeyID, accessKeySecret, securityToken string) {
 	c.accessKeyLock.Lock()
