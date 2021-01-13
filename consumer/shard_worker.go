@@ -127,7 +127,8 @@ func (consumer *ShardConsumerWorker) consume() {
 					} else {
 						consumer.lastFetchTimeForForceFlushCpt = time.Now().Unix()
 					}
-					if consumer.lastFetchTimeForForceFlushCpt != 0 && time.Now().Unix()-consumer.lastFetchTimeForForceFlushCpt > 30 {
+					if time.Now().Unix()-consumer.lastFetchTimeForForceFlushCpt > 30 {
+					//if consumer.lastFetchTimeForForceFlushCpt != 0 && time.Now().Unix()-consumer.lastFetchTimeForForceFlushCpt > 30 {
 						err := consumer.consumerCheckPointTracker.flushCheckPoint()
 						if err != nil {
 							level.Warn(consumer.logger).Log("msg", "Failed to save the final checkpoint", "error:", err)
