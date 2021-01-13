@@ -336,3 +336,18 @@ func (c *Client) ListAlert(project, alertName, dashboard string, offset, size in
 	}
 	return listAlert.Results, listAlert.Total, listAlert.Count, err
 }
+
+func (c *Client) InnerAlertPub(project string, flowAlertResult []byte) error {
+	h := map[string]string{
+		"x-log-bodyrawsize": fmt.Sprintf("%v", len(flowAlertResult)),
+		"Content-Type":      "application/json",
+	}
+
+	uri := "/event/alerthub?type=raw"
+	r, err := c.request(project, "POST", uri, h, flowAlertResult)
+	if err != nil {
+		return err
+	}
+	r.Body.Close()
+	return nil
+}
