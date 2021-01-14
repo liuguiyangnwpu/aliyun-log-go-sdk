@@ -235,4 +235,7 @@ type ClientInterface interface {
 	UpdateCheckpoint(project, logstore string, cgName string, consumer string, shardID int, checkpoint string, forceSuccess bool) (err error)
 	GetCheckpoint(project, logstore string, cgName string) (checkPointList []*ConsumerGroupCheckPoint, err error)
 	SetConsumerAgent(agentName string)
+
+	// ####################  Inner AlertPub Msg  #####################
+	InnerAlertPub(project string, alertResult []byte) error
 }
