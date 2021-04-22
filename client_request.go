@@ -41,6 +41,7 @@ func (c *Client) request(project, method, uri string, headers map[string]string,
 	} else {
 		hostStr = project + "." + endpoint
 	}
+	fmt.Println(endpoint)
 	headers["Host"] = hostStr
 	headers["Date"] = nowRFC1123()
 	headers["x-log-apiversion"] = version
